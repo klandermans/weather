@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ElementTree
 import pandas as pd
 import numpy as np
 import urllib.request
-import mysql.connector
+
 import time
 import csv
 import datetime
@@ -47,12 +47,8 @@ class Parse:
             counter += 1
             if(time.time() - startTime):
                 print('parsing station: '+station+' '+str(counter/(time.time() - startTime)) + " -- " + str(counter) + " -- " + str((time.time() - startTime)) + " secs")
-            self.parse(station=station, runId=runId, fcdate=fcdate)
+            self.parse(station=station, fcdate=fcdate)
         runTime = time.time()-startTime 
-        
-        self.activateRun(runId=runId)
-
-   
 
     def getFcDate(self, fcdate):
         now = fcdate
@@ -92,21 +88,14 @@ class Parse:
 
         return stations
 
-
-
-    
-   
-
-
-    def parse(self, station, runId, fcdate):
+    def parse(self, station, fcdate):
         # get/insert stationId
-        stationId = self.getStation(station=station)
+        # stationId = self.getStation(station=station)
 
-        if(self.checkFile(stationId=stationId, runId=runId) == True):
-            print('skip already parsed')
+        
         
         # get/insert fileId
-        fileId = self.getFileId(stationId=stationId, runId=runId)
+        # fileId = self.getFileId(stationId=stationId, runId=runId)
 
         url = self.getUrl(station, fcdate)
         
@@ -151,9 +140,6 @@ class Parse:
         # change column names to lowercase
         df.columns = [x.lower() for x in df.columns]
 
-        # hylke klopt dit?
-        df['wcode'] = station
-
         df['fc_date'] =  pd.datetime.today().strftime("%Y-%m-%d %H:%M") # ??? todo
         df['fc_date'] = issuetime
         df['fc_date'] = pd.to_datetime(df['fc_date'])
@@ -165,19 +151,12 @@ class Parse:
         df['fc_target_date'] = pd.to_datetime(df['fc_target_date'])
         # df['fc_target_date'] = np.array(timestamps, dtype='datetime64[m]')
         # df['fc_target_date'] = pd.to_datetime(df['fc_target_date'] , format="%Y-%m-%d %H:%M")
-    
-        
-        df['station'] = stationId
-        df['kml_file_id'] = fileId
-        df['mosrun'] = runId
         
         #  calculate diff in hours
         df['fc_target'] = (df['fc_target_date'] - df['fc_date'])
         df['fc_target'] = (df['fc_target'].astype('timedelta64[h]'))
 
-        # columns to insert in mysql
-        cols = ['mosrun','station', 'kml_file_id','fc_date','fc_target_date','fc_target','tt','td','tx','tn','dd','ff','fx','rr','rs','ww','w','n','nef','ncl','ncm','nch','pppp','tg','qsw','qgs','qlw']
-
+        
         # fill empty cols / cleaning the data
         for col in cols:
             if col not in df.columns:
@@ -187,9 +166,8 @@ class Parse:
             df[col] = df[col].replace('-',0)
         
         
-
-        # pandas select cols
-        df = df[cols]
+        df.to
 
 
-    
+d = Parse()
+
