@@ -1,6 +1,7 @@
-# weather
+#  Deutsche Wetterdienst Forecast parser
+
 https://www.dwd.de/ KML weather parser
 
-Some scripts for parsing weather forecasts from deutsche weather dienst. I removed some lines code, the script is broken. 
+This class is parsing the weather forecast from Deutsche Wetterdienst KML files.
 
 
