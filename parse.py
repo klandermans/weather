@@ -1,8 +1,3 @@
-# changes to the db ww col -> int 
-# alle3  decimal(8,2) naar float
-
-# pip3 install io zipfile pandas numpy urllib
-# python3 -m pip install mysql-connector
 import io
 import os
 import zipfile
@@ -10,39 +5,43 @@ import urllib.request
 import xml.etree.ElementTree as ElementTree
 import pandas as pd
 import numpy as np
-import urllib.request
-
 import time
 import csv
 import datetime
-from datetime import  timedelta
+from datetime import timedelta
 
-
-
-# PHP Legacy
-def isset(variable):
-	    return variable in locals() or variable in globals()
+# Ensure dependencies are installed
+# pip3 install io zipfile pandas numpy urllib
+# python3 -m pip install mysql-connector
 
 class Parse:
-    # constructur
+    """
+    A class for parsing weather forecast data from DWD (Deutscher Wetterdienst).
+    """
+
     def __init__(self):
+        """
+        Constructor for Parse class.
+        """
+        self.run(fcdate=datetime.datetime.now() - timedelta(hours=6))
+        self.run(fcdate=datetime.datetime.now())
 
-
-        self.run( fcdate = datetime.datetime.now() - timedelta(hours = 6) ) 
-        self.run( fcdate = datetime.datetime.now() )
-        
-    
     def run(self, fcdate):
-        
+        """
+        Main method to run the parsing process.
+
+        Args:
+            fcdate (datetime): The forecast date.
+
+        Returns:
+            None
+        """
         fcdate = self.getFcDate(fcdate)
         print('Running : ' + str(fcdate))
         stations = self.getStations()
-        # parameters for measuring the loop
         counter = 0
         startTime = time.time()
-        
 
-        # loop stations & parse latest
         for station in stations:
             counter += 1
             if(time.time() - startTime):
@@ -51,8 +50,16 @@ class Parse:
         runTime = time.time()-startTime 
 
     def getFcDate(self, fcdate):
+        """
+        Adjust the forecast date based on the current hour.
+
+        Args:
+            fcdate (datetime): The forecast date.
+
+        Returns:
+            str: The adjusted forecast date string.
+        """
         now = fcdate
-        # quick & dirty (it works)
         if(now.hour<=23):
             fcdate = str(now.year)+'-'+(str(now.month)).zfill(2)+'-'+str(now.day).zfill(2)+' 21:00' 
         if(now.hour<21):
@@ -65,8 +72,18 @@ class Parse:
             now = datetime.datetime.now() + timedelta(hours-3)
             fcdate = str(now.year)+'-'+(str(now.month)).zfill(2)+'-'+str(now.day).zfill(2)+' 21:00' 
         return fcdate   
-    
+
     def getUrl(self, station, fcDate):
+        """
+        Generate URL for downloading weather forecast data.
+
+        Args:
+            station (str): Station code.
+            fcDate (str): Forecast date.
+
+        Returns:
+            str: URL for downloading weather forecast data.
+        """
         ret = fcDate
         ret = ret.replace("-", "")
         ret = ret.replace(" ", "")
@@ -76,34 +93,36 @@ class Parse:
         
         return ret
 
-    def getStations(self):        
-        #  downloading local forecast single station file index from dwd
+    def getStations(self):
+        """
+        Retrieve station codes for parsing weather forecast data.
+
+        Returns:
+            list: List of station codes.
+        """
         files = pd.read_csv('https://opendata.dwd.de/weather/local_forecasts/content.log.bz2',  sep='|', compression='bz2', names=['file', 'size', 'date'])
         files = files[files.file.str.contains('MOSMIX_L/single_stations')]
         files['station'] = files['file'].str.split('/').str[4]
         files.sort_values(['station'], inplace=True)
-
-        # create array with stations to parse
         stations = files['station'].unique()
-
         return stations
 
     def parse(self, station, fcdate):
-        # get/insert stationId
-        # stationId = self.getStation(station=station)
+        """
+        Parse weather forecast data for a given station and forecast date.
 
-        
-        
-        # get/insert fileId
-        # fileId = self.getFileId(stationId=stationId, runId=runId)
+        Args:
+            station (str): Station code.
+            fcdate (str): Forecast date.
 
+        Returns:
+            None
+        """
         url = self.getUrl(station, fcdate)
         
         try:
             filename = '/tmp/pyparser'    
             filename, headers = urllib.request.urlretrieve(url)
-            
-            # unzip kmz
             kmz = zipfile.ZipFile(filename, 'r')
             for name in kmz.namelist():
                 kml = kmz.read(name)   
@@ -111,63 +130,45 @@ class Parse:
         except:
             print("An exception occurred")
             return
-        # download kmz
-  
-        # parse xml
+        
         root = ElementTree.fromstring(kml)
-
         ns = {'xmlns': "http://www.opengis.net/kml/2.2", 'dwd': 'https://opendata.dwd.de/weather/lib/pointforecast_dwd_extension_V1_0.xsd'}
-
-        # temporary storage of forecast values
         timestamps = []
         forecasts = dict()
 
-        # Find all timestamps
         for element in root.findall('.//dwd:IssueTime', namespaces=ns):
             issuetime = element.text
-        
-        # Find all timestamps
+
         for element in root.findall('.//dwd:TimeStep', namespaces=ns):
             timestamps.append(element.text)
 
-        # Find all forecasts
         for element in root.findall('.//dwd:Forecast', ns):
             forecasts.update({element.attrib['{https://opendata.dwd.de/weather/lib/pointforecast_dwd_extension_V1_0.xsd}elementName']:element[0].text.split()})
         
-        # init pandas dataframe
         df = pd.DataFrame(forecasts)
-        
-        # change column names to lowercase
         df.columns = [x.lower() for x in df.columns]
 
-        df['fc_date'] =  pd.datetime.today().strftime("%Y-%m-%d %H:%M") # ??? todo
+        df['fc_date'] =  pd.datetime.today().strftime("%Y-%m-%d %H:%M")
         df['fc_date'] = issuetime
         df['fc_date'] = pd.to_datetime(df['fc_date'])
 
-        # amateur parser
         df['fc_target_date'] = timestamps
-        # df['fc_target_date'] = df['fc_target_date'].str.slice(0, 16)
-        # df['fc_target_date'] = df['fc_target_date'].str.replace("T"," ")
         df['fc_target_date'] = pd.to_datetime(df['fc_target_date'])
-        # df['fc_target_date'] = np.array(timestamps, dtype='datetime64[m]')
-        # df['fc_target_date'] = pd.to_datetime(df['fc_target_date'] , format="%Y-%m-%d %H:%M")
-        
-        #  calculate diff in hours
+
         df['fc_target'] = (df['fc_target_date'] - df['fc_date'])
         df['fc_target'] = (df['fc_target'].astype('timedelta64[h]'))
 
-        
-        # fill empty cols / cleaning the data
+        # Clean data
+        cols = ['ww', 'alle3']
         for col in cols:
             if col not in df.columns:
                 df[col] = 0
-        # replace - for 0        
+        
         for col in df.columns:        
             df[col] = df[col].replace('-',0)
         
-        
-        df.to
+        # Here, you would typically insert the data into your database
+        # Example: df.to_sql('your_table_name', your_database_connection, if_exists='append', index=False)
 
-
+# Instantiate the Parse class
 d = Parse()
-
